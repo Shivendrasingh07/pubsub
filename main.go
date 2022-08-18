@@ -32,14 +32,14 @@ func main() {
 	fmt.Println("start main")
 	ctx := context.Background()
 
-	go NewKafkaProvider(ctx)
+	go publish(ctx)
 	//Subscribe()
 
-	Subscribe2(TopicRealtimeMessage, ctx)
+	subscribe(TopicChatMessage, ctx)
 
 }
 
-func NewKafkaProvider(ctx context.Context) {
+func publish(ctx context.Context) {
 
 	fmt.Print("Enter text: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -49,19 +49,24 @@ func NewKafkaProvider(ctx context.Context) {
 		fmt.Println("An error occured while reading input. Please try again", err)
 	}
 
+	writeMessage(TopicChatMessage, input, ctx)
+
+}
+
+func writeMessage(topic2 Topic, input string, ctx context.Context) {
 	outboundMessageBytes, err := json.Marshal(&Message{
-		Message: input + string(TopicChatMessage),
+		Message: input + string(topic2),
 	})
 
 	if err != nil {
 		logrus.Errorf("toggleBlock: error marshal outbound message data  %v", err)
-
 	}
+
 	kafkaHost := "127.0.0.1:9092"
 	// TopicChatMessage
 	chatWriter := &kafka.Writer{
 		Addr:      kafka.TCP(kafkaHost),
-		Topic:     string(TopicChatMessage),
+		Topic:     string(topic2),
 		BatchSize: 1,
 	}
 
@@ -74,28 +79,12 @@ func NewKafkaProvider(ctx context.Context) {
 		logrus.Errorf("Publish: failed to write chat messages: %v", err)
 	}
 
-	outboundMessageBytes, err = json.Marshal(&Message{
-		Message: input + string(TopicRealtimeMessage),
-	})
-
-	//TopicRealtimeMessage
-	chatWriterRealtime := &kafka.Writer{
-		Addr:      kafka.TCP(kafkaHost),
-		Topic:     string(TopicRealtimeMessage),
-		BatchSize: 1,
+	if err = chatWriter.Close(); err != nil {
+		logrus.Errorf("Publish: failed to chatWriter.Close() : %v", err)
 	}
-	err = chatWriterRealtime.WriteMessages(context.Background(),
-		kafka.Message{
-			Value: outboundMessageBytes,
-		},
-	)
-	if err != nil {
-		logrus.Errorf("Publish: failed to write chat messages: %v", err)
-	}
-
 }
 
-func Subscribe2(topic Topic, ctx context.Context) {
+func subscribe(topic Topic, ctx context.Context) {
 	kafkaHost := "127.0.0.1:9092"
 
 	r := kafka.NewReader(kafka.ReaderConfig{
@@ -104,23 +93,22 @@ func Subscribe2(topic Topic, ctx context.Context) {
 		GroupID: "g1",
 	})
 
-	writeMessage(ctx, r)
+	readMessage(ctx, r)
 }
 
-func writeMessage(ctx context.Context, r *kafka.Reader) {
-	for {
-		m, err := r.ReadMessage(ctx)
-		if err != nil {
-			logrus.Errorf("Failed to Read Message from topic: %q error: %v", m.Topic, err)
-		}
+func readMessage(ctx context.Context, r *kafka.Reader) {
 
-		var message Message
-		if err = json.Unmarshal(m.Value, &message); err != nil {
-			logrus.Errorf("Failed to Unmarshal message from topic: %q error: %v", m.Topic, err)
-			return
-		}
-		fmt.Println(message)
+	m, err := r.ReadMessage(ctx)
+	if err != nil {
+		logrus.Errorf("Failed to Read Message from topic: %q error: %v", m.Topic, err)
 	}
+
+	var message Message
+	if err = json.Unmarshal(m.Value, &message); err != nil {
+		logrus.Errorf("Failed to Unmarshal message from topic: %q error: %v", m.Topic, err)
+		return
+	}
+	fmt.Println(message)
 }
 
 //func Subscribe() {
