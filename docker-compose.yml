@@ -27,7 +27,6 @@ services:
       - ALLOW_PLAINTEXT_LISTENER=yes
 #      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL://127.0.0.1:9092
       - KAFKA_CREATE_TOPICS=chat_message
-      - KAFKA_CREATE_TOPICS=real_time_events_message
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
 
     depends_on:
